@@ -1,14 +1,16 @@
 package main
 
 import (
+	"context"
+	"github.com/YuukiRen/esGolang/domain"
+	middL "github.com/YuukiRen/esGolang/middleware"
+	studentDelivery "github.com/YuukiRen/esGolang/student/delivery"
+	studentRepository "github.com/YuukiRen/esGolang/student/repository/elastic_search"
+	studentUsecase "github.com/YuukiRen/esGolang/student/usecase"
+	"github.com/labstack/echo"
 	"github.com/olivere/elastic/v7"
 	"log"
-	"github.com/labstack/echo"
-	student_delivery "github.com/YuukiRen/esGolang/student/delivery"
-	student_repository "github.com/YuukiRen/esGolang/student/repository/elastic_search"
-	student_usecase "github.com/YuukiRen/esGolang/student/usecase"
 	"time"
-	middL "github.com/YuukiRen/esGolang/middleware"
 )
 
 
@@ -27,39 +29,20 @@ func main(){
 	if err != nil {
 		log.Fatalf("Fail to initialize Elastic Client: %v", err)
 	}
+	ctx := context.Background()
 
 	e:= echo.New()
 	middLware := middL.InitMiddleware()
 	e.Use(middLware.Logging)
 	e.Use(middLware.CORS)
-	sr := student_repository.NewElasticStudentRepository(esClient)
-	su := student_usecase.NewStudentUsecase(sr, 2*time.Second)
-	student_delivery.NewStudentDelivery(e, su)
+
+	err = domain.CreateIndexIfDoesNotExist(ctx, esClient, "students")
+	if err != nil{
+		log.Fatalf("Fail to create new index: %s", err.Error())
+	}
+	sr := studentRepository.NewElasticStudentRepository(esClient)
+	su := studentUsecase.NewStudentUsecase(sr, 2*time.Second)
+	studentDelivery.NewStudentDelivery(e, su)
 
 	log.Fatal(e.Start(":9090"))
 }
-
-
-//func insert(esClient *elastic.Client, ctx context.Context){
-//
-//	student := Student{
-//		Name: "Alvin Reinaldo",
-//		Age:  21,
-//		GPA:  3.84,
-//	}
-//
-//	dataJSON, err := json.Marshal(student)
-//	if err != nil{
-//		log.Fatalf("Fail to marshal student object: %v", err)
-//	}
-//	js := string(dataJSON)
-//	idx, err := esClient.Index().
-//		Index("students").
-//		BodyJson(js).
-//		Do(ctx)
-//	if err != nil{
-//		log.Fatalf("Fail to insert json data to index: %v", err)
-//	}
-//	log.Println("Insertion Succeed", idx)
-//}
-
